@@ -32,6 +32,8 @@ func main() {
 	apiKey := flag.String("api-key", defaultAPIKey, "LiveKit API key")
 	apiSecret := flag.String("api-secret", defaultAPISecret, "LiveKit API secret")
 	webDir := flag.String("web", "", "path to web directory (auto-detect if empty)")
+	host := flag.String("host", "", "public IP or hostname (enables remote access; omit for localhost-only)")
+	domain := flag.String("domain", "", "public domain name for browser WSS URLs (e.g. meetty.gaurav.zip)")
 	flag.Parse()
 
 	// --- Start embedded LiveKit server ---
@@ -42,8 +44,16 @@ func main() {
 	conf.Port = uint32(*lkPort)
 	conf.Development = true
 	conf.Keys = map[string]string{*apiKey: *apiSecret}
-	conf.RTC.NodeIP = "127.0.0.1"
-	conf.RTC.EnableLoopbackCandidate = true
+
+	if *host != "" {
+		conf.RTC.NodeIP = *host
+		conf.RTC.EnableLoopbackCandidate = false
+		conf.RTC.ICEPortRangeStart = 50000
+		conf.RTC.ICEPortRangeEnd = 60000
+	} else {
+		conf.RTC.NodeIP = "127.0.0.1"
+		conf.RTC.EnableLoopbackCandidate = true
+	}
 
 	currentNode, err := routing.NewLocalNode(conf)
 	if err != nil {
@@ -77,6 +87,10 @@ func main() {
 	}
 
 	lkURL := fmt.Sprintf("http://localhost:%d", *lkPort)
+	lkHost := "localhost"
+	if *host != "" {
+		lkHost = *host
+	}
 	fmt.Printf("LiveKit server running on :%d\n", *lkPort)
 
 	// --- Auto-detect web directory ---
@@ -185,8 +199,15 @@ func main() {
 		w.WriteHeader(http.StatusCreated)
 	})
 
-	// LiveKit WebSocket URL for browser clients
-	wsURL := fmt.Sprintf("ws://localhost:%d", *lkPort)
+	// LiveKit WebSocket URL for browser clients.
+	// When --domain is set, Caddy proxies port 7443 (TLS) → 7880 with a real cert.
+	// Falls back to --host IP with self-signed cert if no domain.
+	wsURL := fmt.Sprintf("ws://%s:%d", lkHost, *lkPort)
+	if *domain != "" {
+		wsURL = fmt.Sprintf("wss://%s:7443", *domain)
+	} else if *host != "" {
+		wsURL = fmt.Sprintf("wss://%s:7443", lkHost)
+	}
 	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
@@ -201,9 +222,10 @@ func main() {
 
 	addr := fmt.Sprintf(":%d", *apiPort)
 	fmt.Printf("API server listening on %s\n", addr)
-	fmt.Printf("  Web UI: http://localhost:%d\n", *apiPort)
-	fmt.Printf("  Token:  POST http://localhost:%d/token\n", *apiPort)
-	fmt.Printf("  Rooms:  GET  http://localhost:%d/api/rooms\n", *apiPort)
+	fmt.Printf("  Web UI: http://%s:%d\n", lkHost, *apiPort)
+	fmt.Printf("  LiveKit WS: %s\n", wsURL)
+	fmt.Printf("  Token:  POST http://%s:%d/token\n", lkHost, *apiPort)
+	fmt.Printf("  Rooms:  GET  http://%s:%d/api/rooms\n", lkHost, *apiPort)
 
 	httpServer := &http.Server{Addr: addr, Handler: handler}
 

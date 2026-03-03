@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>meetty [livekit]</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap');
@@ -66,8 +66,9 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 100vh;
+    height: 100dvh;
     padding: 2rem;
+    padding-bottom: calc(2rem + env(safe-area-inset-bottom));
     animation: fadeUp 0.6s ease-out;
   }
 
@@ -281,7 +282,7 @@
   #meeting {
     display: none;
     flex-direction: column;
-    height: 100vh;
+    height: 100dvh;
   }
 
   .meeting-header {
@@ -415,6 +416,7 @@
     justify-content: center;
     gap: 0.5rem;
     padding: 0.8rem;
+    padding-bottom: calc(0.8rem + env(safe-area-inset-bottom));
     border-top: 1px solid var(--border);
     background: var(--bg-card);
     flex-shrink: 0;
@@ -899,6 +901,11 @@
   const toggleCam = document.getElementById('toggleCam');
   const toggleMic = document.getElementById('toggleMic');
   const toggleScreen = document.getElementById('toggleScreen');
+
+  // Hide screen share on devices that don't support it (e.g. iOS Safari)
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+    toggleScreen.style.display = 'none';
+  }
   const toggleChat = document.getElementById('toggleChat');
   const leaveBtn = document.getElementById('leaveBtn');
   const statusText = document.getElementById('statusText');
@@ -1375,7 +1382,7 @@
   });
 
   // Refresh device list when devices change (plug/unplug)
-  if (navigator.mediaDevices.ondevicechange !== undefined) {
+  if (navigator.mediaDevices && navigator.mediaDevices.ondevicechange !== undefined) {
     navigator.mediaDevices.addEventListener('devicechange', () => {
       if (settingsOpen) populateDevices();
     });
